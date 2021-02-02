@@ -8,14 +8,14 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 
 TEST_SIZE = 0.2
-EPOCHS = 5
+EPOCHS = 10
 IMG_WIDTH = 480
 IMG_HEIGHT = 640
 
 def main():
 
     # Training file paths
-    filename = os.path.join('data', 'train.mp4')
+    filename       = os.path.join('data', 'train.mp4')
     label_filename = os.path.join('data', 'train.txt')
 
     # Load data for training
@@ -39,13 +39,12 @@ def main():
     model.evaluate(x_test,  y_test, verbose=2)
 
     # Save model to file
-    model_file = 'saved_models'
+    model_file = os.path.join('saved_models', 'optical_flow')
     model.save(model_file)
     print(f"Model saved to {model_file}.")
 
     # Plot history for accuracy
     plt.plot(history.history['accuracy'])
-    plt.plot(history.history['val_accuracy'])
     plt.title('model accuracy')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
@@ -53,7 +52,6 @@ def main():
     plt.show()
     # Plot history for loss
     plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
     plt.title('model loss')
     plt.ylabel('mse loss')
     plt.xlabel('epoch')
@@ -84,14 +82,11 @@ def load_data(video_filename, label_filename):
         if frame1 is None:
             break
 
-        # Background subtraction
-        mask = background_sub(frame1, frame2)
+        # # Background subtraction
+        # img = background_sub(frame1, frame2)
 
-        # reshape mask
-        img = np.zeros_like(frame1)
-        img[:,:,0] = mask
-        img[:,:,1] = mask
-        img[:,:,2] = mask
+        # Optical Flow
+        img = calc_optical_flow(frame1, frame2)
 
         # Get car speed from labels
         v1 = next(speeds)
@@ -128,7 +123,13 @@ def background_sub(frame1, frame2):
     mask = backSub.apply(frame1)
     mask = backSub.apply(frame2)
 
-    return mask
+    # reshape mask
+    img = np.zeros_like(frame1)
+    img[:,:,0] = mask
+    img[:,:,1] = mask
+    img[:,:,2] = mask
+
+    return img
 
 def calc_optical_flow(frame1, frame2):
     

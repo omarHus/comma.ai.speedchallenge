@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import os
 from train_model import background_sub
+from train_model import calc_optical_flow
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 
@@ -12,7 +13,7 @@ def main():
     data_for_predictions = load_data(filename)
 
     # Load model
-    model_filepath = 'saved_models'
+    model_filepath = os.path.join('saved_models', 'optical_flow')
     model = load_model(model_filepath, compile=True)
 
     # Make Predictions
@@ -51,22 +52,11 @@ def load_data(video_filename):
             break
 
         # Background subtraction
-        mask = background_sub(frame1, frame2)
-
-        # reshape mask
-        img = np.zeros_like(frame1)
-        img[:,:,0] = mask
-        img[:,:,1] = mask
-        img[:,:,2] = mask
+        # mask = background_sub(frame1, frame2)
+        img = calc_optical_flow(frame1, frame2)
 
         # Combine all data for the model
         images.append(img)
-
-        # show the frame and update the FPS counter
-        # cv2.imshow("background sub frame", img)
-        # k = cv2.waitKey(1) & 0xff
-        # if k == 27:
-        #     break
     
     # do a bit of cleanup
     cap.release()
