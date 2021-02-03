@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-import os
+import os, sys
 
 # Machine Learning libraries
 from sklearn.model_selection import train_test_split
@@ -9,14 +9,19 @@ import tensorflow as tf
 
 TEST_SIZE = 0.2
 EPOCHS = 10
-IMG_WIDTH = 480
-IMG_HEIGHT = 640
+IMG_WIDTH = 200
+IMG_HEIGHT = 66
 
 def main():
 
+    # Check command-line arguments
+    if len(sys.argv) not in [2, 3]:
+        sys.exit("Usage: python train_model.py model_directory")
+
     # Training file paths
-    filename       = os.path.join('data', 'train.mp4')
-    label_filename = os.path.join('data', 'train.txt')
+    saved_model_dir = sys.argv[1]
+    filename        = os.path.join('data', 'train.mp4')
+    label_filename  = os.path.join('data', 'train.txt')
 
     # Load data for training
     images, labels = load_data(filename, label_filename)
@@ -33,23 +38,16 @@ def main():
     model = get_model()
 
     # Fit model on training data
-    history = model.fit(x_train, y_train, epochs=EPOCHS)
+    history = model.fit(x_train, y_train, epochs=EPOCHS, steps_per_epoch=400)
 
     # Evaluate neural network performance
     model.evaluate(x_test,  y_test, verbose=2)
 
     # Save model to file
-    model_file = os.path.join('saved_models', 'optical_flow')
+    model_file = os.path.join('saved_models', saved_model_dir)
     model.save(model_file)
     print(f"Model saved to {model_file}.")
 
-    # Plot history for accuracy
-    plt.plot(history.history['accuracy'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
     # Plot history for loss
     plt.plot(history.history['loss'])
     plt.title('model loss')
@@ -83,10 +81,13 @@ def load_data(video_filename, label_filename):
             break
 
         # # Background subtraction
-        # img = background_sub(frame1, frame2)
+        img = background_sub(frame1, frame2)
 
         # Optical Flow
-        img = calc_optical_flow(frame1, frame2)
+        # img = calc_optical_flow(frame1, frame2)
+
+        # Resize img
+        img = cv2.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation = cv2.INTER_AREA)
 
         # Get car speed from labels
         v1 = next(speeds)
@@ -104,7 +105,7 @@ def load_data(video_filename, label_filename):
         # k = cv2.waitKey(1) & 0xff
         # if k == 27:
         #     break
-    
+        
     # do a bit of cleanup
     cap.release()
     cv2.destroyAllWindows()
@@ -142,7 +143,7 @@ def calc_optical_flow(frame1, frame2):
     gray2 = cv2.cvtColor(frame2,cv2.COLOR_BGR2GRAY)
 
     # Calculate dense optical Flow
-    flow = cv2.calcOpticalFlowFarneback(gray1,gray2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+    flow = cv2.calcOpticalFlowFarneback(gray1,gray2, None, 0.5, 1, 15, 2, 5, 1.3, 0)
 
     # Change to polar coordinates
     mag, ang = cv2.cartToPolar(flow[...,0], flow[...,1])
@@ -166,31 +167,41 @@ def get_model():
     `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
     The output layer should have `NUM_CATEGORIES` units, one for each category.
     """
+    # Define input shape of image
+    input_shape = (IMG_HEIGHT, IMG_WIDTH, 3)
 
     # Need a sequential model
     model = tf.keras.models.Sequential([
 
-        # Input layer with 32 filters using a 3x3 kernel
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)),
+        # Add Normalization layer - avoids weights exceeding certain values
+        tf.keras.layers.BatchNormalization(input_shape=input_shape),
 
-        # Max pooling layer 2x2 pool size
-        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        # Add convolution layer 1
+        tf.keras.layers.Conv2D(24, (5, 5), activation='elu', strides=(2, 2)),
 
-        # 2nd convolution layer with 32 filters using a 3x3 kernel
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+        # Add convolution layer 2
+        tf.keras.layers.Conv2D(36, (5, 5), activation='elu', strides=(2, 2)),
 
-        # 2nd Max pooling layer 2x2 pool size
-        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        # Add convolution layer 3
+        tf.keras.layers.Conv2D(48, (5, 5), activation='elu', strides=(2, 2)),
+
+        # Add convolution layer 4 - non strided
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Conv2D(64, (3, 3), activation='elu', strides=(1, 1)),
+
+        # Add final convolution layer
+        tf.keras.layers.Conv2D(64, (3, 3), activation='elu', strides=(1, 1)),
 
         # Flatten units
         tf.keras.layers.Flatten(),
 
-        # Add hidden layer with dropout (avoids overfitting)
-        tf.keras.layers.Dense(128, activation='relu'),
-        tf.keras.layers.Dropout(0.5),
+        # Three fully connected layers
+        tf.keras.layers.Dense(100, activation='elu'),
+        tf.keras.layers.Dense(50, activation='elu'),
+        tf.keras.layers.Dense(10, activation='elu'),
 
-        # do not put activation at the end because we want to have exact output, not a class identifier
-        tf.keras.layers.Dense(1, name = 'output', kernel_initializer = 'he_normal'),
+        # Final Output layer - 1 speed value
+        tf.keras.layers.Dense(1, name='output')
 
     ])
 
@@ -198,7 +209,6 @@ def get_model():
     model.compile(
         optimizer='adam',
         loss="mse",
-        metrics=['accuracy']
     )
 
     return model

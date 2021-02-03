@@ -5,6 +5,8 @@ from train_model import background_sub
 from train_model import calc_optical_flow
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
+from train_model import IMG_HEIGHT, IMG_WIDTH
+
 
 def main():
 
@@ -19,17 +21,22 @@ def main():
     # Make Predictions
     predictions = model.predict(np.array(data_for_predictions))
 
+    # Separate frames
+    frame_speeds = [elem[0] for elem in predictions for i in range(2)]
+
     # Plot results
-    # classes = np.array2string(predictions)
-    # output_file = open("predictions.txt","w")
-    # output_file.write(classes)
-    # output_file.close()
-    # Plot history for accuracy
-    plt.plot(predictions)
+    plt.plot(frame_speeds)
     plt.title('Model Speed Predictions')
     plt.ylabel('Speed')
-    plt.xlabel('frame')
+    plt.xlabel('frames')
     plt.show()
+
+    # Create output txt file with predictions
+    output_file = open("predictions.txt", "w")
+    for frame_speed in frame_speeds:
+        output_file.write("%s\n" % str(frame_speed))
+    output_file.close()
+
 
 
 def load_data(video_filename):
@@ -55,8 +62,16 @@ def load_data(video_filename):
         # mask = background_sub(frame1, frame2)
         img = calc_optical_flow(frame1, frame2)
 
+        # Resize img
+        img = cv2.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation = cv2.INTER_AREA)
+
         # Combine all data for the model
         images.append(img)
+
+        cv2.imshow("background sub frame", img)
+        k = cv2.waitKey(1) & 0xff
+        if k == 27:
+            break
     
     # do a bit of cleanup
     cap.release()
