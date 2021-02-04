@@ -1,15 +1,15 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 import os, sys
+import numpy as np
+import matplotlib.pyplot as plt
 
 # Machine Learning libraries
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
-TEST_SIZE = 0.2
-EPOCHS = 10
-IMG_WIDTH = 200
+TEST_SIZE  = 0.2
+EPOCHS     = 10
+IMG_WIDTH  = 200
 IMG_HEIGHT = 66
 
 def main():
@@ -58,6 +58,15 @@ def main():
     
 
 def load_data(video_filename, label_filename):
+    """
+    Load frames from the video file and load labels from the label file.
+    
+    Combine successive frames into frame-pairs using either Background Sub
+    or Optical Flow
+
+    Returns a list of the processed frame-pairs and a list of the average 
+    label values for each pair.
+    """
 
     # Start streaming video file
     cap = cv2.VideoCapture(video_filename)
@@ -69,7 +78,6 @@ def load_data(video_filename, label_filename):
     labels   = []
 
     print("Loading frames")
-
     # loop over frames from the video file stream
     while (True):
 
@@ -81,12 +89,12 @@ def load_data(video_filename, label_filename):
             break
 
         # # Background subtraction
-        img = background_sub(frame1, frame2)
+        # img = background_sub(frame1, frame2)
 
         # Optical Flow
-        # img = calc_optical_flow(frame1, frame2)
+        img = calc_optical_flow(frame1, frame2)
 
-        # Resize img
+        # Resize img for neural network
         img = cv2.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation = cv2.INTER_AREA)
 
         # Get car speed from labels
@@ -101,11 +109,11 @@ def load_data(video_filename, label_filename):
         labels.append(mean_speed)
 
         # show the frame and update the FPS counter
-        # cv2.imshow("background sub frame", img)
+        # cv2.imshow("optical flow frame", img)
         # k = cv2.waitKey(1) & 0xff
         # if k == 27:
         #     break
-        
+
     # do a bit of cleanup
     cap.release()
     cv2.destroyAllWindows()
@@ -115,8 +123,12 @@ def load_data(video_filename, label_filename):
     return (images, labels)
 
 
-
 def background_sub(frame1, frame2):
+    """
+    Perform background subtraction on two successive frames.
+    Reshape the foreground mask img and return it
+    """
+
     # Background Subtraction object
     backSub = cv2.createBackgroundSubtractorMOG2()
 
@@ -133,7 +145,10 @@ def background_sub(frame1, frame2):
     return img
 
 def calc_optical_flow(frame1, frame2):
-    
+    """
+    Calculate the Dense Optical Flow for successive frames
+    Return the color-coded vector field
+    """
     
     hsv = np.zeros_like(frame1)
     hsv[...,1] = 255
@@ -158,6 +173,11 @@ def calc_optical_flow(frame1, frame2):
 
 
 def load_labels(filename):
+    """
+    Return Generator for labels so that we can get successive labels
+    And calculate the mean speed of each frame-pair
+    """
+
     for row in open(filename, 'r'):
         yield float(row)
 
@@ -165,7 +185,8 @@ def get_model():
     """
     Returns a compiled convolutional neural network model. Assume that the
     `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
-    The output layer should have `NUM_CATEGORIES` units, one for each category.
+    Base the CNN off of the NVIDIA architecture from 2017
+    The output layer should have 1 unit - the speed of the car in the frame
     """
     # Define input shape of image
     input_shape = (IMG_HEIGHT, IMG_WIDTH, 3)
