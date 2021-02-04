@@ -67,11 +67,6 @@ def load_data(video_filename):
 
         # Combine all data for the model
         images.append(img)
-
-        cv2.imshow("background sub frame", img)
-        k = cv2.waitKey(1) & 0xff
-        if k == 27:
-            break
     
     # do a bit of cleanup
     cap.release()
